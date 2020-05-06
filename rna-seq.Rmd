@@ -1,0 +1,257 @@
+---
+title: "rna-seq"
+author: "Rawan Shraim"
+date: "April 15, 2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r}
+rm (list = ls())
+library(limma)
+library(edgeR)
+```
+
+```{r}
+files=c('SRR8053838_counts.txt','SRR8053837_counts.txt')
+data= readDGE(files, columns=c(1,2))
+head(data)
+dim(data)
+```
+
+```{r}
+gene_anot=read.delim('mart_export.txt', header=TRUE, sep=',')
+```
+
+```{r}
+gene_anot2=gene_anot[-c(2:4)]
+head(gene_anot2)
+```
+
+```{r}
+ind=match(rownames(data$counts), gene_anot2$Gene.stable.ID)
+genes=gene_anot2[ind,]
+data$genes=genes
+
+```
+
+```{r}
+cpm=cpm(data)
+lcpm = cpm(data, log=TRUE)
+
+keep.exprs=filterByExpr(data)
+data2=data[keep.exprs,]
+
+#Keeps genes with about 10 read counts o more in a minimum number of sampeles 
+dim(data2)
+dim(data)
+#Left with around 30% of the number we started with 
+```
+
+```{r}
+L <- mean(data$samples$lib.size) * 1e-6
+M <- median(data$samples$lib.size) * 1e-6
+
+c(L,M)
+```
+```{r}
+lcpm.cutoff <- log2(10/M + 2/L)
+library(RColorBrewer)
+nsamples <- ncol(data2)
+par(mfrow=c(1,2))
+samplenames=c('A','B')
+plot(density(lcpm[,1]), col='red', lwd=2, ylim=c(0,0.7), las=2, main="", xlab="")
+title(main="A. Raw data", xlab="Log-cpm")
+abline(v=lcpm.cutoff, lty=3)
+
+for (i in 2:nsamples){
+den <- density(lcpm[,i])
+lines(den$x, den$y, col='blue', lwd=2)
+} 
+col2=c('red','blue')
+
+legend("topright", samplenames, fill =col2)
+
+lcpm2 <- cpm(data2, log=TRUE)
+plot(density(lcpm2[,1]), col='red', lwd=2, ylim=c(0,0.26), las=2, main="", xlab="")
+title(main="B. Filtered data", xlab="Log-cpm")
+abline(v=lcpm.cutoff, lty=3)
+
+for (i in 2:nsamples){
+den <- density(lcpm2[,i])
+lines(den$x, den$y, col='blue', lwd=2)
+} 
+legend("topright", samplenames, fill=col2)
+
+```
+
+```{r}
+#Scatterplot of log cpm from sample A and B 
+#All genes 
+
+cpmtest=as.data.frame(cpm)
+
+plot(cpmtest$SRR8053838_counts, cpmtest$SRR8053837_counts, xlab = 'Sample B counts (cpm)', ylab='Sample A counts (cpm)')
+title('Read counts for All Genes')
+
+```
+
+```{r}
+lcmptest=as.data.frame(lcpm)
+plot(lcmptest$SRR8053838_counts, lcmptest$SRR8053837_counts, xlab = 'Sample B counts (log cpm)', ylab='Sample A counts (log cpm)')
+title('Log Read counts for All Genes')
+```
+
+```{r}
+corl=cor.test(lcmptest$SRR8053838_counts, lcmptest$SRR8053837_counts)
+corl
+```
+```{r}
+lncRNA=which(genes$Gene.type=='lncRNA')
+lnc_geneid=genes$Gene.stable.ID[lncRNA]
+lnc_cpm=cpmtest[rownames(cpmtest) %in% lnc_geneid,]
+plot(lnc_cpm$SRR8053838_counts, lnc_cpm$SRR8053837_counts, xlab = 'Sample B counts (cpm)', ylab='Sample A counts (cpm)')
+title('Read counts for Long Non-coding RNA Genes')
+
+```
+
+```{r}
+lnc_logcpm=lcmptest[rownames(lcmptest) %in% lnc_geneid,]
+plot(lnc_logcpm$SRR8053838_counts, lnc_logcpm$SRR8053837_counts, xlab = 'Sample B counts (log cpm)', ylab='Sample A counts (log cpm)')
+title('Log Read counts for Long Non-coding RNA Genes')
+
+```
+
+```{r}
+V_RNA=which(genes$Gene.type=='TR_V_gene')
+V_geneid=genes$Gene.stable.ID[V_RNA]
+V_cpm=cpmtest[rownames(cpmtest) %in% V_geneid,]
+plot(V_cpm$SRR8053838_counts, V_cpm$SRR8053837_counts, xlab = 'Sample B counts (cpm)', ylab='Sample A counts (cpm)')
+title('Read counts for V Genes')
+length(V_cpm$SRR8053838_counts)
+
+```
+
+```{r}
+genenames=c('TR_V_gene','TR_J_gene','TR_D_gene')
+geneidtot=c()
+for (i in genenames){
+  RNA=which(genes$Gene.type==i)
+  geneid=genes$Gene.stable.ID[RNA]
+  geneidtot=c(as.character(geneid), as.character(geneidtot))
+  cpm=cpmtest[rownames(cpmtest) %in% geneid,]
+  l=length(cpm$SRR8053838_counts)
+  print(l)
+  }
+
+
+```
+
+```{r}
+VDG_cpm=cpmtest[rownames(cpmtest) %in% geneidtot,]
+plot(VDG_cpm$SRR8053838_counts, VDG_cpm$SRR8053837_counts, xlab = 'Sample B counts (cpm)', ylab='Sample A counts (cpm)')
+title('Read counts for VDJ Genes')
+
+```
+
+```{r}
+VDG_lcpm=lcmptest[rownames(lcmptest) %in% geneidtot,]
+plot(VDG_lcpm$SRR8053838_counts, VDG_lcpm$SRR8053837_counts, xlab = 'Sample B counts (log cpm)', ylab='Sample A counts (log cpm)')
+title('Log Read counts for VDJ Genes')
+
+```
+
+```{r}
+#Positive genes check 
+#CD19
+genenames=c('Cd19', 'Ptprc', 'Rag1', 'Rag2')
+geneidtot=c()
+genenamefound=c()
+for (i in genenames){
+  pos=which(genes$Gene.name==i)
+  geneid=genes$Gene.stable.ID[pos]
+  genename=genes$Gene.name[pos]
+  geneidtot=c(as.character(geneid), as.character(geneidtot))
+  genenamefound=c(as.character(genename), as.character(genenamefound))
+}
+
+cpm=cpmtest[rownames(cpmtest) %in% geneidtot,]
+cpm$genenames=genenamefound
+```
+
+```{r}
+cpm
+library(ggplot2)
+library(reshape2)
+dfm <- melt(cpm[,c('genenames','SRR8053838_counts','SRR8053837_counts')],id.vars = 1)
+dfm
+ggplot(dfm,aes(x = genenames,y = value)) + 
+    geom_bar(aes(fill = variable),stat = "identity",position = "dodge")
+```
+
+```{r}
+#Negative genes check 
+genenames=c('Cd3g', 'Cd3d', 'Thy1', 'Cd4')
+geneidtot=c()
+genenamefound=c()
+for (i in genenames){
+  neg=which(genes$Gene.name==i)
+  geneid=genes$Gene.stable.ID[neg]
+  genename=genes$Gene.name[neg]
+  geneidtot=c(as.character(geneid), as.character(geneidtot))
+  genenamefound=c(as.character(genename), as.character(genenamefound))
+}
+
+cpm_neg=cpmtest[rownames(cpmtest) %in% geneidtot,]
+cpm_neg$genename=genenamefound
+
+dfm <- melt(cpm_neg[,c('genename','SRR8053838_counts','SRR8053837_counts')],id.vars = 1)
+dfm
+ggplot(dfm,aes(x = genename,y = value)) + 
+    geom_bar(aes(fill = variable),stat = "identity",position = "dodge") + labs(y='cpm', x='Genes', colour='Samples') + ggtitle('Negative Gene Markers')
+
+```
+
+```{r}
+#Preprocessing
+d0=calcNormFactors(data2)
+d0
+
+unique(gene_anot2$Gene.type)
+```
+
+```{r}
+cutoff=1
+drop = which (apply(cpm(d0),1,max)< cutoff)
+d=d0[-drop,]
+dim(d)
+```
+
+```{r}
+group=c('SRR38','SRR37')
+plotMDS(d, col = as.numeric(group))
+
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+
+```{r}
+
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
