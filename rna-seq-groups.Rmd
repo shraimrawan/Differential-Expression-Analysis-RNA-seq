@@ -1,0 +1,250 @@
+---
+title: "rna-seq-groups"
+author: "Rawan Shraim"
+date: "May 13, 2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+```
+
+```{r}
+rm (list = ls())
+library(limma)
+library(edgeR)
+
+```
+
+```{r}
+##Upload all files into data structure Data 
+files=c('SRR8053838_counts.txt','SRR8053837_counts.txt', 'SRR2048292_counts.txt', 'SRR2048291_counts.txt', 'SRR2048290_counts.txt', 'SRR2048289_counts.txt', 'SRR2048288_counts.txt', 'SRR2048287_counts.txt', 'SRR2048286_counts.txt','SRR2048285_counts.txt', 'SRR2048284_counts.txt', 'SRR2048283_counts.txt', 'SRR2048282_counts.txt', 'SRR2048281_counts.txt', 'SRR7943774_counts.txt', 'SRR7943773_counts.txt', 'SRR7943772_counts.txt')
+data= readDGE(files, columns=c(1,2))
+head(data)
+dim(data)
+```
+
+
+
+```{r}
+##Read gene annotation table. Final table is gene_anot2
+gene_anot=read.delim('mart_export.txt', header=TRUE, sep=',')
+gene_anot2=gene_anot[-c(2:4)]
+head(gene_anot2)
+
+```
+
+```{r}
+#Add the gene annotation to the data structure 
+ind=match(rownames(data$counts), gene_anot2$Gene.stable.ID)
+genes=gene_anot2[ind,]
+data$genes=genes
+head(data)
+```
+
+```{r}
+#Convert counts to counts per million and log counts per million 
+cpm=cpm(data)
+lcpm = cpm(data, log=TRUE)
+cpmtest=as.data.frame(cpm)
+lcmptest=as.data.frame(lcpm)
+head(lcmptest)
+
+```
+
+```{r}
+#Subsetting the thymocyte group and get the Gene markers for this group 
+
+thymocytes=subset(cpm, select=c('SRR2048292_counts', 'SRR2048291_counts', 'SRR2048290_counts', 'SRR2048289_counts', 'SRR2048288_counts','SRR2048287_counts', 'SRR2048286_counts','SRR2048285_counts', 'SRR2048284_counts', 'SRR2048283_counts', 'SRR2048282_counts','SRR2048281_counts'))
+
+genenames=c('Cd4', 'Thy1', 'Cd3', 'Cd19','Aicda')
+geneidtot=c()
+genenamefound=c()
+
+for (i in genenames){
+  gene=which(genes$Gene.name==i)
+  geneid=genes$Gene.stable.ID[gene]
+  genename=genes$Gene.name[gene]
+  geneidtot=c(as.character(geneid), as.character(geneidtot))
+  genenamefound=c(as.character(genename), as.character(genenamefound))
+}
+
+order=data.frame(geneidtot,genenamefound)
+
+
+cpm_thymo=as.data.frame(thymocytes[rownames(thymocytes) %in% geneidtot,])
+cpm_thymo$geneid=rownames(cpm_thymo)
+cpm_thymo2=merge(cpm_thymo,order, by.x='geneid', by.y='geneidtot')
+
+dfm <- melt(cpm_thymo2[,c('genenamefound','SRR2048292_counts', 'SRR2048291_counts', 'SRR2048290_counts', 'SRR2048289_counts', 'SRR2048288_counts','SRR2048287_counts', 'SRR2048286_counts','SRR2048285_counts', 'SRR2048284_counts', 'SRR2048283_counts', 'SRR2048282_counts','SRR2048281_counts')],id.vars = 1)
+
+dfm$status=c('negative')
+dfm[dfm$genename %in% c('Cd4','Thy1','Cd3'),]$status=c('positive')
+dfm
+
+gene_mark=ggplot(dfm,aes(x =genenamefound , y = value)) + 
+    geom_bar(aes(fill = variable),stat = "identity",position = "dodge") + labs(y='cpm', x='Genes', colour='Samples') + ggtitle('Gene Markers')
+
+
+gene_mark + facet_wrap(~status, scales = "free_x" )
+```
+
+```{r}
+#Subset the P545 cells and get the gene markers for that group 
+
+P545=subset(cpm, select=c('SRR7943774_counts', 'SRR7943773_counts', 'SRR7943772_counts'))
+
+genenames=c('Rag1', 'Rag2', 'Cd3g', 'Cd19','Aicda', 'Ptprc')
+geneidtot=c()
+genenamefound=c()
+
+for (i in genenames){
+  gene=which(genes$Gene.name==i)
+  geneid=genes$Gene.stable.ID[gene]
+  genename=genes$Gene.name[gene]
+  geneidtot=c(as.character(geneidtot), as.character(geneid))
+  genenamefound=c(as.character(genenamefound), as.character(genename))
+}
+order=data.frame(geneidtot,genenamefound)
+
+cpm_p5=as.data.frame(P545[rownames(P545) %in% geneidtot,])
+cpm_p5$geneid=rownames(cpm_p5)
+cpm_p54=merge(cpm_p5,order, by.x='geneid', by.y='geneidtot')
+
+dfm <- melt(cpm_p54[,c('genenamefound','SRR7943774_counts', 'SRR7943773_counts', 'SRR7943772_counts')],id.vars = 1)
+
+dfm$status=c('negative')
+dfm[dfm$genename %in% c('Rag1','Rag2', 'Cd3g'),]$status=c('positive')
+dfm
+
+gene_mark=ggplot(dfm,aes(x =genenamefound , y = value)) + 
+    geom_bar(aes(fill = variable),stat = "identity",position = "dodge") + labs(y='cpm', x='Genes', colour='Samples') + ggtitle('Gene Markers')
+
+
+gene_mark + facet_wrap(~status, scales = "free_x" )
+
+
+```
+
+```{r}
+#Filtering data to only keep genes that have at least 10 counts in it
+
+keep.exprs=filterByExpr(data)
+data2=data[keep.exprs,]
+#Keeps genes with about 10 read counts or more in a minimum number of sampeles 
+dim(data2)
+dim(data)
+#25.8% of the data is left 
+```
+
+
+
+```{r}
+#Creating groups for the PCA plot 
+
+groups=as.factor(c('prob', 'prob','RAG2ko', 'RAG2ko', 'RAG2ko','RAG1koCD', 'RAG1koCD','RAG1koCD','RAG1koTG', 'RAG1koTG','RAG1koTG','RAG1koD7','RAG1koD7','RAG1koD7', 'P545','P545','P545'))
+colnames(lcmptest)=groups
+colnames(cpmtest)=groups
+col=as.numeric(groups)
+
+```
+
+```{r}
+#PCA for all groups 
+
+data_for_pca=t(lcmptest)
+mds=cmdscale(dist(data_for_pca), k=3, eig=TRUE)  
+# transform the Eigen values into percentage
+eig_pc <- mds$eig * 100 / sum(mds$eig)
+# plot the PCA
+par(mfrow=c(1,2))
+barplot(eig_pc,
+     las=1,
+     xlab="Dimensions", 
+     ylab="Proportion of explained variance (%)", y.axis=NULL,
+     col="darkgrey")
+plotMDS(lcmptest, col = col, xlab='Dim 1 - 50.3%', ylab='Dim 2 - 36.7%')
+title('All groups')
+
+```
+
+```{r}
+#Subset the log cpm for thymocytes 
+
+thymo_l=subset(lcmptest, select=c('RAG2ko', 'RAG2ko', 'RAG2ko','RAG1koCD', 'RAG1koCD','RAG1koCD','RAG1koTG', 'RAG1koTG','RAG1koTG','RAG1koD7','RAG1koD7','RAG1koD7'))
+thymo_nl=subset(cpmtest, select=c('RAG2ko', 'RAG2ko', 'RAG2ko','RAG1koCD', 'RAG1koCD','RAG1koCD','RAG1koTG', 'RAG1koTG','RAG1koTG','RAG1koD7','RAG1koD7','RAG1koD7'))
+head(thymo_l)
+
+```
+
+
+
+```{r}
+#PCA for Thymocyte cell groups 
+
+thymo_g=as.factor(c('RAG2ko', 'RAG2ko', 'RAG2ko','RAG1koCD', 'RAG1koCD','RAG1koCD','RAG1koTG', 'RAG1koTG','RAG1koTG','RAG1koD7','RAG1koD7','RAG1koD7'))
+col=as.numeric(thymo_g)
+
+data_for_pca=t(thymo_l)
+mds=cmdscale(dist(data_for_pca), k=3, eig=TRUE)  
+# transform the Eigen values into percentage
+eig_pc <- mds$eig * 100 / sum(mds$eig)
+# plot the PCA
+par(mfrow=c(1,2))
+barplot(eig_pc,
+     las=1,
+     xlab="Dimensions", 
+     ylab="Proportion of explained variance (%)", y.axis=NULL,
+     col="darkgrey",
+     main="Variance for each dimension")
+
+plotMDS(thymo_l, col = col, xlab='Dim 1 - 51.7%', ylab='Dim 2 - 27.6%')
+title(main='Thymocyte DP group')
+
+
+```
+
+```{r}
+p545_lcpm=subset(lcmptest, select=c('P545','P545','P545'))
+P545_g=as.factor(c('P545', 'P545.1','P545.2'))
+col=as.numeric(P545_g)
+
+```
+
+
+
+```{r}
+#Pull the long non-coding RNA from the full dataset 
+
+groups=as.factor(c('prob', 'prob','RAG2ko', 'RAG2ko', 'RAG2ko','RAG1koCD', 'RAG1koCD','RAG1koCD','RAG1koTG', 'RAG1koTG','RAG1koTG','RAG1koD7','RAG1koD7','RAG1koD7', 'P545','P545','P545'))
+colnames(lcmptest)=groups
+colnames(cpmtest)=groups
+col=as.numeric(groups)
+
+lncRNA=which(genes$Gene.type=='lncRNA')
+lnc_geneid=genes$Gene.stable.ID[lncRNA]
+lnc_cpm=lcmptest[rownames(lcmptest) %in% lnc_geneid,]
+head(lnc_cpm)
+
+```
+
+```{r}
+#PCA for all groups only using long non-coding RNAs 
+data_for_pca=t(lnc_cpm)
+mds=cmdscale(dist(data_for_pca), k=3, eig=TRUE)  
+# transform the Eigen values into percentage
+eig_pc <- mds$eig * 100 / sum(mds$eig)
+# plot the PCA
+par(mfrow=c(1,2))
+barplot(eig_pc,
+     las=1,
+     xlab="Dimensions", 
+     ylab="Proportion of explained variance (%)", y.axis=NULL,
+     col="darkgrey")
+plotMDS(lcmptest, col = col, xlab='Dim 1 - 63.1%', ylab='Dim 2 - 21.3%')
+title('Long non-coding RNAs-all groups')
+
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
