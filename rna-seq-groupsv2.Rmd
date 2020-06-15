@@ -1,0 +1,420 @@
+---
+title: "rna-seq-groups"
+author: "Rawan Shraim"
+date: "May 13, 2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+```
+
+```{r}
+rm (list = ls())
+library(limma)
+library(edgeR)
+
+```
+
+```{r}
+##Upload all files into data structure Data 
+files=c('SRR8053838_counts.txt','SRR8053837_counts.txt', 'SRR2048292_counts.txt', 'SRR2048291_counts.txt', 'SRR2048290_counts.txt', 'SRR2048289_counts.txt', 'SRR2048288_counts.txt', 'SRR2048287_counts.txt', 'SRR2048286_counts.txt','SRR2048285_counts.txt', 'SRR2048284_counts.txt', 'SRR2048283_counts.txt', 'SRR2048282_counts.txt', 'SRR2048281_counts.txt', 'SRR7943774_counts.txt', 'SRR7943773_counts.txt', 'SRR7943772_counts.txt')
+data= readDGE(files, columns=c(1,2))
+head(data$counts)
+dim(data$counts)
+```
+
+
+
+```{r}
+##Read gene annotation table. Final table is gene_anot2
+gene_anot=read.delim('mart_export.txt', header=TRUE, sep=',')
+gene_anot2=gene_anot[-c(2:4)]
+head(gene_anot2)
+
+```
+
+```{r}
+#Add the gene annotation to the data structure 
+ind=match(rownames(data$counts), gene_anot2$Gene.stable.ID)
+genes=gene_anot2[ind,]
+data$genes=genes
+head(data$genes)
+```
+
+```{r}
+#Convert counts to counts per million and log counts per million 
+cpm=cpm(data)
+lcpm = cpm(data, log=TRUE)
+cpmtest=as.data.frame(cpm)
+lcmptest=as.data.frame(lcpm)
+head(lcmptest)
+
+```
+
+```{r}
+#Subsetting the thymocyte group and get the Gene markers for this group 
+library(reshape2)
+library(ggplot2)
+
+thymocytes=subset(cpm, select=c('SRR2048292_counts', 'SRR2048291_counts', 'SRR2048290_counts', 'SRR2048289_counts', 'SRR2048288_counts','SRR2048287_counts', 'SRR2048286_counts','SRR2048285_counts', 'SRR2048284_counts', 'SRR2048283_counts', 'SRR2048282_counts','SRR2048281_counts'))
+
+genenames=c('Cd4', 'Thy1', 'Cd3', 'Cd19','Aicda')
+geneidtot=c()
+genenamefound=c()
+
+for (i in genenames){
+  gene=which(genes$Gene.name==i)
+  geneid=genes$Gene.stable.ID[gene]
+  genename=genes$Gene.name[gene]
+  geneidtot=c(as.character(geneid), as.character(geneidtot))
+  genenamefound=c(as.character(genename), as.character(genenamefound))
+}
+
+order=data.frame(geneidtot,genenamefound)
+
+
+cpm_thymo=as.data.frame(thymocytes[rownames(thymocytes) %in% geneidtot,])
+cpm_thymo$geneid=rownames(cpm_thymo)
+cpm_thymo2=merge(cpm_thymo,order, by.x='geneid', by.y='geneidtot')
+
+dfm <- melt(cpm_thymo2[,c('genenamefound','SRR2048292_counts', 'SRR2048291_counts', 'SRR2048290_counts', 'SRR2048289_counts', 'SRR2048288_counts','SRR2048287_counts', 'SRR2048286_counts','SRR2048285_counts', 'SRR2048284_counts', 'SRR2048283_counts', 'SRR2048282_counts','SRR2048281_counts')],id.vars = 1)
+
+dfm$status=c('negative')
+dfm[dfm$genename %in% c('Cd4','Thy1','Cd3'),]$status=c('positive')
+dfm
+
+gene_mark=ggplot(dfm,aes(x =genenamefound , y = value)) + 
+    geom_bar(aes(fill = variable),stat = "identity",position = "dodge") + labs(y='cpm', x='Genes', colour='Samples') + ggtitle('Gene Markers')
+
+
+gene_mark + facet_wrap(~status, scales = "free_x" )
+```
+
+```{r}
+#Subset the P545 cells and get the gene markers for that group 
+
+P545=subset(cpm, select=c('SRR7943774_counts', 'SRR7943773_counts', 'SRR7943772_counts'))
+
+genenames=c('Rag1', 'Rag2', 'Cd3g', 'Cd19','Aicda', 'Ptprc')
+geneidtot=c()
+genenamefound=c()
+
+for (i in genenames){
+  gene=which(genes$Gene.name==i)
+  geneid=genes$Gene.stable.ID[gene]
+  genename=genes$Gene.name[gene]
+  geneidtot=c(as.character(geneidtot), as.character(geneid))
+  genenamefound=c(as.character(genenamefound), as.character(genename))
+}
+order=data.frame(geneidtot,genenamefound)
+
+cpm_p5=as.data.frame(P545[rownames(P545) %in% geneidtot,])
+cpm_p5$geneid=rownames(cpm_p5)
+cpm_p54=merge(cpm_p5,order, by.x='geneid', by.y='geneidtot')
+
+dfm <- melt(cpm_p54[,c('genenamefound','SRR7943774_counts', 'SRR7943773_counts', 'SRR7943772_counts')],id.vars = 1)
+
+dfm$status=c('negative')
+dfm[dfm$genename %in% c('Rag1','Rag2', 'Cd3g'),]$status=c('positive')
+dfm
+
+gene_mark=ggplot(dfm,aes(x =genenamefound , y = value)) + 
+    geom_bar(aes(fill = variable),stat = "identity",position = "dodge") + labs(y='cpm', x='Genes', colour='Samples') + ggtitle('Gene Markers')
+
+
+gene_mark + facet_wrap(~status, scales = "free_x" )
+
+
+```
+
+```{r}
+#Filtering data to only keep genes that have at least 10 counts in it
+
+keep.exprs=filterByExpr(data)
+data2=data[keep.exprs,]
+#Keeps genes with about 10 read counts or more in a minimum number of sampeles 
+dim(data2)
+dim(data)
+#25.8% of the data is left 
+```
+
+
+
+```{r}
+#Creating groups for the PCA plot 
+
+groups=as.factor(c('prob.1', 'prob.2','RAG2ko.1', 'RAG2ko.2', 'RAG2ko.3','RAG1koCD.1', 'RAG1koCD.2','RAG1koCD.3','RAG1koTG.1', 'RAG1koTG.2','RAG1koTG.3','RAG1koD7.1','RAG1koD7.2','RAG1koD7.3', 'P545.1','P545.2','P545.3'))
+
+#### KEH:
+#### Colnames have to be unique!!!
+#### groups != columnames please fix
+
+colnames(lcmptest)=groups
+colnames(cpmtest)=groups
+col=as.numeric(groups)
+
+```
+
+```{r}
+#PCA for all groups 
+
+data_for_pca=t(lcmptest)
+mds=cmdscale(dist(data_for_pca), k=3, eig=TRUE)  
+# transform the Eigen values into percentage
+eig_pc <- mds$eig * 100 / sum(mds$eig)
+# plot the PCA
+par(mfrow=c(1,2))
+barplot(eig_pc,
+     las=1,
+     xlab="Dimensions", 
+     ylab="Proportion of explained variance (%)", y.axis=NULL,
+     col="darkgrey")
+plotMDS(lcmptest, col = col, xlab='Dim 1 - 50.3%', ylab='Dim 2 - 36.7%')
+title('All groups')
+
+```
+
+```{r}
+#### KEH: HERE IS THE PROBLEM, you seleceted the same columns over and over again, column names in lcpmtest are non-unique!
+
+
+#Subset the log cpm for thymocytes 
+thymo_l=subset(lcmptest, select=c('RAG2ko.1', 'RAG2ko.2', 'RAG2ko.3','RAG1koCD.1', 'RAG1koCD.2','RAG1koCD.3','RAG1koTG.1', 'RAG1koTG.2','RAG1koTG.3','RAG1koD7.1','RAG1koD7.2','RAG1koD7.3'))
+thymo_nl=subset(cpmtest, select=c('RAG2ko.1', 'RAG2ko.2', 'RAG2ko.3','RAG1koCD.1', 'RAG1koCD.2','RAG1koCD.3','RAG1koTG.1', 'RAG1koTG.2','RAG1koTG.3','RAG1koD7.1','RAG1koD7.2','RAG1koD7.3'))
+head(thymo_l)
+
+```
+
+
+
+```{r}
+#PCA for Thymocyte cell groups 
+
+thymo_g=as.factor(c('RAG2ko.1', 'RAG2ko.2', 'RAG2ko.3','RAG1koCD.1', 'RAG1koCD.2','RAG1koCD.3','RAG1koTG.1', 'RAG1koTG.2','RAG1koTG.3','RAG1koD7.1','RAG1koD7.2','RAG1koD7.3'))
+col=as.numeric(thymo_g)
+
+data_for_pca=t(thymo_l)
+mds=cmdscale(dist(data_for_pca), k=3, eig=TRUE)  
+# transform the Eigen values into percentage
+eig_pc <- mds$eig * 100 / sum(mds$eig)
+# plot the PCA
+par(mfrow=c(1,2))
+barplot(eig_pc,
+     las=1,
+     xlab="Dimensions", 
+     ylab="Proportion of explained variance (%)", y.axis=NULL,
+     col="darkgrey",
+     main="Variance for each dimension")
+
+plotMDS(thymo_l, col = col, xlab='Dim 1 - 51.7%', ylab='Dim 2 - 27.6%')
+title(main='Thymocyte DP group')
+
+
+```
+
+
+
+
+```{r}
+#Pull the long non-coding RNA from the full dataset 
+
+groups=as.factor(c('prob.1', 'prob.2','RAG2ko.1', 'RAG2ko.2', 'RAG2ko.3','RAG1koCD.1', 'RAG1koCD.2','RAG1koCD.3','RAG1koTG.1', 'RAG1koTG.2','RAG1koTG.3','RAG1koD7.1','RAG1koD7.2','RAG1koD7.3', 'P545.1','P545.2','P545.3'))
+colnames(lcmptest)=groups
+colnames(cpmtest)=groups
+col=as.numeric(groups)
+
+lncRNA=which(genes$Gene.type=='lncRNA')
+lnc_geneid=genes$Gene.stable.ID[lncRNA]
+lnc_cpm=lcmptest[rownames(lcmptest) %in% lnc_geneid,]
+head(lnc_cpm)
+
+```
+
+```{r}
+#PCA for all groups only using long non-coding RNAs 
+data_for_pca=t(lnc_cpm)
+mds=cmdscale(dist(data_for_pca), k=3, eig=TRUE)  
+# transform the Eigen values into percentage
+eig_pc <- mds$eig * 100 / sum(mds$eig)
+# plot the PCA
+par(mfrow=c(1,2))
+barplot(eig_pc,
+     las=1,
+     xlab="Dimensions", 
+     ylab="Proportion of explained variance (%)", y.axis=NULL,
+     col="darkgrey")
+plotMDS(lcmptest, col = col, xlab='Dim 1 - 63.1%', ylab='Dim 2 - 21.3%')
+title('Long non-coding RNAs-all groups')
+
+```
+
+
+```{r}
+##Differential expression Analysis for the thymocyte group 
+
+library(limma)
+x=as.data.frame(data$counts)
+#Selecting the raw counts for only thymocyte data 
+
+rawcounts=subset(x, select=c('SRR2048292_counts', 'SRR2048291_counts','SRR2048290_counts', 'SRR2048289_counts', 'SRR2048288_counts','SRR2048287_counts', 'SRR2048286_counts','SRR2048285_counts', 'SRR2048284_counts', 'SRR2048283_counts', 'SRR2048282_counts','SRR2048281_counts'))
+
+#Filtering dataset
+keep.exprs=filterByExpr(rawcounts)
+rdata=rawcounts[keep.exprs,]
+
+head(rawcounts)
+```
+
+```{r}
+#Creating model for heatmap and comparison groups 
+thymo_g=as.factor(c('RAG2ko', 'RAG2ko', 'RAG2ko','RAG1koCD', 'RAG1koCD','RAG1koCD','RAG1koTG', 'RAG1koTG','RAG1koTG','RAG1koD7','RAG1koD7','RAG1koD7'))
+design = model.matrix(~0+thymo_g)
+design
+contr.matrix <- makeContrasts(
+  Rag2kovsRag1knoCD =  thymo_gRAG2ko - thymo_gRAG1koCD,
+  Rag2kovsRag1knTg = thymo_gRAG2ko - thymo_gRAG1koTG,
+  Rag2kovsRag1koD7 = thymo_gRAG2ko - thymo_gRAG1koD7,
+  Rag1koCDvsRag1koTg = thymo_gRAG1koCD - thymo_gRAG1koTG,
+  Rag1koCDvsRag1koD7 = thymo_gRAG1koCD - thymo_gRAG1koD7,
+  Rag1koTgvsRag1koD7 = thymo_gRAG1koTG - thymo_gRAG1koD7,
+  levels = colnames(design))
+contr.matrix
+
+```
+
+```{r}
+
+par(mfrow=c(1,2))
+v=voom(rdata, design, plot=TRUE)
+v
+vfit <- lmFit(v, design)
+vfit <- contrasts.fit(vfit, contrasts=contr.matrix)
+efit <- eBayes(vfit)
+plotSA(efit, main="Final model: Mean-variance trend")
+```
+
+
+```{r}
+#Looking at differentially expressed genes 
+summary(decideTests(efit))
+
+#Having a log difference of 2 
+tfit <- treat(vfit, lfc=1)
+dt <- decideTests(tfit)
+summary(dt)
+```
+
+
+```{r}
+#Looking at the first comparison. Rag2Ko vs Rag1knoCD
+comp1=topTreat(tfit, coef=1, n=Inf)
+comp1$geneID=rownames(comp1)
+RAG2ko.vs.RAG1koCD=merge(comp1, genes, by.x="geneID", by.y="Gene.stable.ID")
+#Ordered by adj p val 
+RAG2ko.vs.RAG1koCD=RAG2ko.vs.RAG1koCD[order(RAG2ko.vs.RAG1koCD$adj.P.Val), ]
+head(RAG2ko.vs.RAG1koCD)
+write.csv(RAG2ko.vs.RAG1koCD,"topgenes.csv", row.names = FALSE)
+
+```
+
+```{r}
+#Need this for the heatmap. Function borrowed from gplots code
+colorpanel <- function(n,low,mid,high)
+  {
+    if(missing(mid) || missing(high) )
+      {
+        ## convert to rgb
+        low <- col2rgb(low)
+        if(missing(high))
+          high <- col2rgb(mid)
+        else
+          high <- col2rgb(high)
+        
+        red    <- seq(low[1,1], high[1,1], length=n)/255
+        green  <- seq(low[3,1], high[3,1], length=n)/255
+        blue   <- seq(low[2,1], high[2,1], length=n)/255
+      }
+    else # use a center color
+      {
+        isodd <- odd(n)
+        if(isodd)
+          {
+            n <- n+1
+          }
+
+        ## convert to rgb
+        low <- col2rgb(low)
+        mid <- col2rgb(mid)
+        high <- col2rgb(high)
+
+        ## determine length of each component
+        lower <- floor(n/2)
+        upper <- n - lower
+        
+        red  <- c(
+                  seq(low[1,1], mid [1,1], length=lower),
+                  seq(mid[1,1], high[1,1], length=upper)
+                  )/255
+        
+        green <- c(
+                   seq(low[3,1], mid [3,1], length=lower),
+                   seq(mid[3,1], high[3,1], length=upper)
+                   )/255
+        
+        blue <- c(
+                  seq(low[2,1], mid [2,1], length=lower),
+                  seq(mid[2,1], high[2,1], length=upper)
+                  )/255
+        
+        if(isodd)
+          {
+            red   <- red  [-(lower+1)]
+            green <- green[-(lower+1)]
+            blue  <- blue [-(lower+1)]
+          }
+      }
+      
+    rgb(red,blue,green)
+  }
+
+
+
+```
+
+```{r}
+library(gtools)
+thymo_g_col=as.factor(c('RAG2ko.1', 'RAG2ko.2', 'RAG2ko.3','RAG1koCD.1', 'RAG1koCD.2','RAG1koCD.3','RAG1koTG.1', 'RAG1koTG.2','RAG1koTG.3','RAG1koD7.1','RAG1koD7.2','RAG1koD7.3'))
+b=as.data.frame(v$E)
+b$geneID=rownames(b)
+n=merge(b,genes, by.x='geneID', by.y='Gene.stable.ID')
+RAG2ko.vs.RAG1CD.topgenes = RAG2ko.vs.RAG1koCD$Gene.name[1:10]
+i = which(n$Gene.name %in% RAG2ko.vs.RAG1CD.topgenes)
+thymo_l$geneid=rownames(thymo_l)
+c=which(thymo_l$geneid %in% n$geneID[i])
+mycol <- colorpanel(1000,"blue","white","red")
+heatmap(as.matrix(thymo_l[c, 1:ncol(thymo_l)-1]), scale="row",
+   labRow=n$Gene.name[i], labCol=thymo_g_col, 
+   col=mycol, 
+   margin=c(8,6), Rowv = NA)
+
+
+##Volcano plot 
+
+
+
+#### KEH: Please make x labels unique too
+```
+
+```{r}
+## Volcano plot 
+
+```
+
+```{r}
+comp.topgenes = RAG2ko.vs.RAG1koCD$Gene.name[1:100]
+volcanoplot(tfit, coef = 1, style = "p-value", highlight = 0,  xlab = "Log2 Fold Change", ylab = NULL)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
